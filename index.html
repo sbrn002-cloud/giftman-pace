@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>러닝 페이스 계산기</title>
+  <style>
+    :root { --bg:#ffffff; --card:#ffffff; --ink:#111111; --muted:#666666; --accent:#6c7bff; --accent-2:#8a5cff; }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:#ffffff;color:#111111;font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Noto Sans KR,Helvetica,Arial}
+    .wrap{width:360px;max-width:360px;margin:16px auto;padding:0}
+    .card{background:var(--card);border:1px solid #e3e7ef;border-radius:16px;padding:14px 14px 10px;box-shadow:0 6px 18px rgba(20,28,55,.06)}
+    h1{font-size:25px;margin:0 0 4px;letter-spacing:-.3px;text-align:center}
+
+    input[type="number"]{width:60px;padding:6px 8px;border-radius:12px;border:1px solid #c9cfda;background:#ffffff;color:#d40000;outline:none;text-align:right;font-weight:700;font-size:20px}
+    input[type="number"]:focus{border-color:#6c7bff}
+
+    .row{display:flex;gap:6px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+    .suffix{font-size:18px;color:#111;font-weight:700;margin-left:6px;margin-right:4px}
+    .help{margin-top:8px;color:#111;font-size:16px;line-height:1.5;display:block;word-break:keep-all;font-weight:400;text-align:left}
+
+    .btn{appearance:none;border:0;border-radius:10px;padding:8px 10px;color:white;cursor:pointer;white-space:nowrap;transition:background 0.2s ease;font-size:14px;line-height:1} .btn.sm{padding:6px 9px;font-size:13px}
+    .btn.secondary{background:#b0b0b0;border:1px solid #999;color:#fff}
+    .btn.primary{background:#6ec1ff;border:1px solid #4aa0ff;color:#fff}
+
+    table{width:100%;border-collapse:separate;border-spacing:0;margin-top:12px;overflow:hidden;border-radius:14px;border:1px solid #e0e4ec;table-layout:fixed}
+    thead th{background:#f7f8fb;color:#111;padding:6px 6px;font-weight:700;font-size:18px}
+    tbody td{padding:6px 8px;border-top:1px solid #eef2f8;font-size:18px}
+    tbody tr:nth-child(odd){background:#ffffff}
+    tbody tr:nth-child(even){background:#f2f2f2}
+    tbody tr:hover{background:#e0f2ff}
+    th:first-child, td:first-child{text-align:center}
+    th:last-child, td:last-child{text-align:left}
+
+    .footer{margin:14px 0 0;color:#7f8798;font-size:13px;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="topbar" style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:2px">
+        <h1 style="margin:0;white-space:nowrap">러닝 페이스 계산기</h1>
+        <div class="actions" style="display:flex;gap:6px;align-items:center;justify-content:flex-end">
+          <button class="btn secondary sm" id="reset">초기화</button>
+          <button class="btn primary sm" id="share">링크 복사</button>
+        </div>
+      </div>
+
+      <div class="row">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <input id="min" type="number" min="0" max="59" value="6"/>
+          <span class="suffix">분</span>
+          <input id="sec" type="number" min="0" max="59" value="30"/>
+          <span class="suffix">초 / km 페이스</span>
+        </div>
+      </div>
+      <div class="help" id="helpLine">▶1km 달리는데 6분 30초 소요 됩니다.</div>
+
+      <table>
+        <colgroup>
+          <col style="width:58%">
+          <col style="width:42%">
+        </colgroup>
+        <thead>
+          <tr><th>거리 (km)</th><th>시간 (시:분:초)</th></tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+
+      <div class="footer" style="text-align:center">
+        기념품·홍보물품·판촉물·답례품 제작 www.giftman.net<br/>
+        카카오채널에서 "기프트맨" 검색 후 간편한 상담 채팅<br/>
+        © Giftman. All rights reserved.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const rowsEl = document.getElementById('rows');
+    const minEl = document.getElementById('min');
+    const secEl = document.getElementById('sec');
+    const shareBtn = document.getElementById('share');
+    const resetBtn = document.getElementById('reset');
+    const helpLine = document.getElementById('helpLine');
+
+    const items = [
+      {label:'10km (단축마라톤)', km:10},
+      {label:'Half (21.0975km)', km:21.0975},
+      {label:'Full (42.195km)', km:42.195},
+      {label:'LSD_30k', km:30},
+      {label:'LSD_20K', km:20},
+      {label:'LSD_25K', km:25},
+      {label:'LSD_35k', km:35},
+      {label:'5k_TT', km:5},
+      {label:'3k_TT', km:3}
+    ];
+
+    function toSeconds(min, sec){ return (Number(min)||0)*60 + (Number(sec)||0); }
+    function pad(n){return String(n).padStart(2,'0')}
+    function hhmmss(total){
+      const h = Math.floor(total/3600);
+      const m = Math.floor((total%3600)/60);
+      const s = Math.round(total%60);
+      return `${pad(h)}:${pad(m)}:${pad(s)}`;
+    }
+
+    function render(){
+      const pace = toSeconds(minEl.value, secEl.value);
+      rowsEl.innerHTML = '';
+      items.forEach(({label, km})=>{
+        const t = pace * km;
+        const tr = document.createElement('tr');
+        const td1 = document.createElement('td');
+        const td2 = document.createElement('td');
+        td1.textContent = label;
+        td2.textContent = hhmmss(t);
+        td1.title = hhmmss(t);
+        td2.title = hhmmss(t);
+        tr.append(td1, td2);
+        rowsEl.append(tr);
+      });
+      helpLine.textContent = `▶1km 달리는데 ${minEl.value||0}분 ${secEl.value||0}초 소요 됩니다.`;
+      updateQuery();
+    }
+
+    function updateQuery(){
+      const q = new URLSearchParams({min:minEl.value||0, sec:secEl.value||0});
+      const url = `${location.pathname}?${q.toString()}`;
+      history.replaceState(null,'',url);
+    }
+
+    function loadFromQuery(){
+      const q = new URLSearchParams(location.search);
+      const min = q.get('min');
+      const sec = q.get('sec');
+      if(min!==null) minEl.value = min;
+      if(sec!==null) secEl.value = sec;
+    }
+
+    minEl.addEventListener('input', render);
+    secEl.addEventListener('input', render);
+
+    shareBtn.addEventListener('click', async ()=>{
+      const url = location.href;
+      try{
+        await navigator.clipboard.writeText(url);
+        alert('링크를 복사했습니다.');
+      }catch(err){
+        alert('복사에 실패했습니다. 수동으로 주소창의 URL을 복사하세요.');
+      }
+    });
+
+    resetBtn.addEventListener('click', ()=>{
+      minEl.value = 6; secEl.value = 30; render();
+      alert('초기화 6분 30초로 설정되었습니다');
+    });
+
+    loadFromQuery();
+    if(!new URLSearchParams(location.search).has('min') && !new URLSearchParams(location.search).has('sec')){
+      minEl.value = 6; secEl.value = 30;
+    }
+    render();
+  </script>
+</body>
+</html>
